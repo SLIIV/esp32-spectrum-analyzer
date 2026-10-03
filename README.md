@@ -100,7 +100,7 @@ pip install -r requirements.txt
 5. **Run:**
 
    ```bash
-   python main.py
+   python realtime.py
    ```
 
 ### What you'll see
