@@ -72,7 +72,7 @@ After flashing, the ESP32 will appear as a COM port (`USB-SERIAL CH340`) when pl
 
 ```bash
 # Clone the repository
-git clone https://github.com/<username>/esp32-spectrum-analyzer.git
+git clone https://github.com/SLIIV/esp32-spectrum-analyzer.git
 cd esp32-spectrum-analyzer
 
 # Create a venv (recommended)
