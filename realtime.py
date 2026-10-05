@@ -6,14 +6,14 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets, QtCore
 
 # ---------- Настройки ----------
-PORT = 'COM8'                   # ← замени на свой порт
+PORT = 'COM3'                   # ← замени на свой порт
 BAUD = 1000000
 N_SAMPLES = 2048                 # малое n = высокий FPS
-FREQ_MHZ = 2472
+FREQ_MHZ = 2462
 RATE = 0                        # 0=80МГц, 1=40МГц, 6=16МГц
 FS = 80e6                       # частота дискретизации для rate=0
 CAP_FORMAT = 20                 # 16 = 8 бит I/Q, 20 = 10 бит I/Q
-WF_HEIGHT = 400                 # число кадров в истории водопада
+WF_HEIGHT = 600                 # число кадров в истории водопада
 AVG_COUNT = 18                  # сколько кадров усреднять для СПЕКТРА
 V_MIN, V_MAX = 15, 90.0        # dB-уровни для водопада (под реальный диапазон)
 ADAPTIVE_LEVELS = False          # True = авто-подстройка уровней по перцентилям
@@ -137,7 +137,9 @@ class SerialWorker(QtCore.QThread):
 # ---------- GUI ----------
 app = pg.mkQApp("ESP-SDR Real-time")
 win = pg.GraphicsLayoutWidget(show=True, title="ESP-SDR Real-time")
-win.resize(1200, 800)
+win.resize(1400, 1350)
+win.ci.layout.setRowStretchFactor(0, 1)    # спектр — 1 часть
+win.ci.layout.setRowStretchFactor(1, 2)
 
 # --- Спектр ---
 plot_spec = win.addPlot(row=0, col=0, title="Спектр (усреднённый)")
