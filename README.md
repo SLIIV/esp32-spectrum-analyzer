@@ -7,7 +7,7 @@
 
 Real-time 2.4 GHz spectrum analyzer and waterfall viewer for ESP32-based ESP-SDR. Streams raw I/Q over UART, processes FFT in Python, and visualizes spectrum + waterfall with absolute frequency axis, CRC validation, and adaptive color levels.
 
-![Screenshot](docs/client-sdr.png)
+![Screenshot](docs/default.png)
 <!-- Replace with your own screenshot in the docs/ folder -->
 
 ---
