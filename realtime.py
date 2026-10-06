@@ -6,18 +6,20 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets, QtCore
 
 # ---------- Настройки ----------
-PORT = 'COM3'                   # ← замени на свой порт
+PORT = 'COM8'                   # ← замени на свой порт
 BAUD = 1000000
-N_SAMPLES = 2048                 # малое n = высокий FPS
-FREQ_MHZ = 2462
+N_SAMPLES = 2048                # малое n = высокий FPS
+FREQ_MHZ = 2437
 RATE = 0                        # 0=80МГц, 1=40МГц, 6=16МГц
 FS = 80e6                       # частота дискретизации для rate=0
 CAP_FORMAT = 20                 # 16 = 8 бит I/Q, 20 = 10 бит I/Q
+BANDWIDTH_MHZ = 17              # analog bandwidth filter
 WF_HEIGHT = 600                 # число кадров в истории водопада
-AVG_COUNT = 18                  # сколько кадров усреднять для СПЕКТРА
-V_MIN, V_MAX = 15, 90.0        # dB-уровни для водопада (под реальный диапазон)
-ADAPTIVE_LEVELS = False          # True = авто-подстройка уровней по перцентилям
+AVG_COUNT = 62                  # сколько кадров усреднять для СПЕКТРА
+V_MIN, V_MAX = 15, 90.0         # dB-уровни для водопада (под реальный диапазон)
+ADAPTIVE_LEVELS = False         # True = авто-подстройка уровней по перцентилям
 DIAG = True                     # печатать диагностику
+FPS = 18                        #средний FPS для вычисления времени кадра
 
 pg.setConfigOptions(useOpenGL=True, antialias=False, imageAxisOrder='row-major')
 
@@ -27,12 +29,13 @@ class SerialWorker(QtCore.QThread):
     data_ready = QtCore.pyqtSignal(np.ndarray)      # линейная мощность кадра
     error = QtCore.pyqtSignal(str)
 
-    def __init__(self, port, baud, n, rate, fmt, freq_mhz):
+    def __init__(self, port, baud, n, rate, fmt, freq_mhz, bw):
         super().__init__()
         self.port, self.baud = port, baud
         self.n, self.rate, self.fmt = n, rate, fmt
         self.running = True
         self.freq = freq_mhz
+        self.bw = bw
         self._t, self._cnt = time.time(), 0
         self._window = np.hanning(n).astype(np.float32)
 
@@ -40,10 +43,10 @@ class SerialWorker(QtCore.QThread):
         try:
             ser = serial.Serial(self.port, self.baud, timeout=0.5)
             time.sleep(0.4)
-            ser.write(b"FREQ {self.freq}\n");      time.sleep(0.05)
+            #ser.write(b"FREQ {self.freq}\n");      time.sleep(0.05)
             ser.write(b"GAIN MANUAL 60\n"); time.sleep(0.05)
-            ser.write(f"FREQ {self.freq}\n".encode())
-            time.sleep(0.1)
+            ser.write(f"FREQ {self.freq}\n".encode()); time.sleep(0.1)
+            ser.write(f"BANDWIDTH {self.bw}\n".encode());  time.sleep(0.05)
             resp = ser.read(ser.in_waiting)
             print(f"FREQ {self.freq} → {resp!r}")
             ser.reset_input_buffer()
@@ -138,7 +141,7 @@ class SerialWorker(QtCore.QThread):
 app = pg.mkQApp("ESP-SDR Real-time")
 win = pg.GraphicsLayoutWidget(show=True, title="ESP-SDR Real-time")
 win.resize(1400, 1350)
-win.ci.layout.setRowStretchFactor(0, 1)    # спектр — 1 часть
+win.ci.layout.setRowStretchFactor(0, 1)
 win.ci.layout.setRowStretchFactor(1, 2)
 
 # --- Спектр ---
@@ -151,7 +154,7 @@ curve = plot_spec.plot(pen=pg.mkPen('y', width=1))
 
 # --- Водопад (горизонтальный, новое слева) ---
 plot_wf = win.addPlot(row=1, col=0, title="Водопад (сырой)")
-plot_wf.setLabel('left', 'Время')
+plot_wf.setLabel('left', 'Время', units="Сек")
 plot_wf.setLabel('bottom', 'Частота', units='МГц')
 plot_wf.showGrid(x=True, y=True, alpha=0.3)
 
@@ -162,19 +165,11 @@ img.setColorMap(pg.colormap.get('turbo'))     # контрастная пали�
 freqs = (np.fft.fftshift(np.fft.fftfreq(N_SAMPLES, d=1/FS)) / 1e6) + FREQ_MHZ
 WIDTH = freqs[-1] - freqs[0]
 
-# Горизонтальный водопад: массив (freq, time)
-# waterfall = np.full((N_SAMPLES, WF_HEIGHT), V_MIN, dtype=np.float32)
-# rect = QtCore.QRectF(0, freqs[0], WF_HEIGHT, WIDTH)
-# waterfall = np.full((WF_HEIGHT, N_SAMPLES), V_MIN, dtype=np.float32)
-# rect = QtCore.QRectF(freqs[0], 0, WIDTH, WF_HEIGHT)
 waterfall = np.full((WF_HEIGHT, N_SAMPLES), V_MIN, dtype=np.float32)
-rect = QtCore.QRectF(freqs[0], 0, WIDTH, WF_HEIGHT)
+rect = QtCore.QRectF(freqs[0], 0, WIDTH, WF_HEIGHT/FPS)
 
 img.setImage(waterfall, autoLevels=False, levels=(V_MIN, V_MAX))
 img.setRect(rect)
-
-# img.setImage(waterfall, autoLevels=False, levels=(V_MIN, V_MAX), rect=rect)
-
 
 # Буфер усреднения спектра
 avg_buf = deque(maxlen=AVG_COUNT)
@@ -199,10 +194,6 @@ def update_plots(power):
     else:
         lo, hi = V_MIN, V_MAX
 
-    # waterfall[:, 1:] = waterfall[:, :-1]                # сдвиг вправо
-    # waterfall[:, 0] = spec_db_raw                       # новое слева
-    # waterfall[1:] = waterfall[:-1]     # сдвиг вниз
-    # waterfall[0] = spec_db_raw          # новое сверху
     waterfall[:-1] = waterfall[1:]
     waterfall[-1] = spec_db_raw
 
@@ -238,7 +229,7 @@ def update_plots(power):
 
 
 # ---------- Запуск ----------
-worker = SerialWorker(PORT, BAUD, N_SAMPLES, RATE, CAP_FORMAT, FREQ_MHZ)
+worker = SerialWorker(PORT, BAUD, N_SAMPLES, RATE, CAP_FORMAT, FREQ_MHZ, BANDWIDTH_MHZ)
 worker.data_ready.connect(update_plots)
 worker.error.connect(lambda m: print(f"ERR: {m}"))
 worker.start()

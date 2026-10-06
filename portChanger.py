@@ -1,6 +1,6 @@
 import serial, time
 
-PORT = 'COM3'
+PORT = 'COM8'
 ser = serial.Serial(PORT, 2000000, timeout=1)
 time.sleep(0.4)
 
